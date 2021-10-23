@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -94,6 +95,8 @@ type handshakeTransport struct {
 
 	// The session ID or nil if first kex did not complete yet.
 	sessionID []byte
+
+	extInfoMsgSentOnce sync.Once
 }
 
 type pendingKex struct {
@@ -609,6 +612,20 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte) error {
 	if err = t.conn.writePacket([]byte{msgNewKeys}); err != nil {
 		return err
 	}
+	if isExtInfo(clientInit.KexAlgos) {
+		var err error
+		t.extInfoMsgSentOnce.Do(func() {
+			msg := &extInfoMsg{
+				NRExtensions:   1,
+				ExtensionName:  "server-sig-algs",
+				ExtensionValue: strings.Join(acceptableAlgs, ","),
+			}
+			err = t.conn.writePacket(Marshal(msg))
+		})
+		if err != nil {
+			return err
+		}
+	}
 	if packet, err := t.conn.readPacket(); err != nil {
 		return err
 	} else if packet[0] != msgNewKeys {
@@ -666,4 +683,13 @@ func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *
 	}
 
 	return result, nil
+}
+
+func isExtInfo(kexAlgos []string) bool {
+	for _, algo := range kexAlgos {
+		if algo == "ext-info-c" {
+			return true
+		}
+	}
+	return false
 }

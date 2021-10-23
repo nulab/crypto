@@ -282,11 +282,32 @@ func (s *connection) serverHandshake(config *ServerConfig) (*Permissions, error)
 	return perms, err
 }
 
+var acceptableAlgs = []string{
+	SigAlgoRSA,
+	SigAlgoRSASHA2256,
+	SigAlgoRSASHA2512,
+	KeyAlgoDSA,
+	KeyAlgoECDSA256,
+	KeyAlgoECDSA384,
+	KeyAlgoECDSA521,
+	KeyAlgoSKECDSA256,
+	KeyAlgoED25519,
+	KeyAlgoSKED25519,
+	CertAlgoRSAv01,
+	CertAlgoDSAv01,
+	CertAlgoECDSA256v01,
+	CertAlgoECDSA384v01,
+	CertAlgoECDSA521v01,
+	CertAlgoSKECDSA256v01,
+	CertAlgoED25519v01,
+	CertAlgoSKED25519v01,
+}
+
 func isAcceptableAlgo(algo string) bool {
-	switch algo {
-	case SigAlgoRSA, SigAlgoRSASHA2256, SigAlgoRSASHA2512, KeyAlgoDSA, KeyAlgoECDSA256, KeyAlgoECDSA384, KeyAlgoECDSA521, KeyAlgoSKECDSA256, KeyAlgoED25519, KeyAlgoSKED25519,
-		CertAlgoRSAv01, CertAlgoDSAv01, CertAlgoECDSA256v01, CertAlgoECDSA384v01, CertAlgoECDSA521v01, CertAlgoSKECDSA256v01, CertAlgoED25519v01, CertAlgoSKED25519v01:
-		return true
+	for _, alg := range acceptableAlgs {
+		if algo == alg {
+			return true
+		}
 	}
 	return false
 }
