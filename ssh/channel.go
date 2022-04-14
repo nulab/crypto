@@ -212,7 +212,12 @@ func (ch *channel) writePacket(packet []byte) error {
 		return io.EOF
 	}
 	ch.sentClose = (packet[0] == msgChannelClose)
-	err := ch.mux.conn.writePacket(packet)
+	var err error
+	if ht, ok := ch.mux.conn.(*handshakeTransport); ok {
+		err = ht.writePacket(packet)
+	} else {
+		err = ch.mux.conn.writePacket(packet)
+	}
 	ch.writeMu.Unlock()
 	return err
 }
