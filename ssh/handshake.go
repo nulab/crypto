@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -615,7 +616,8 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte) error {
 		return err
 	}
 
-	if t.sessionID == nil {
+	firstKeyExchange := t.sessionID == nil
+	if firstKeyExchange {
 		t.sessionID = result.H
 	}
 	result.SessionID = t.sessionID
@@ -626,6 +628,27 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte) error {
 	if err = t.conn.writePacket([]byte{msgNewKeys}); err != nil {
 		return err
 	}
+
+	if !isClient {
+		if firstKeyExchange && isExtInfo(clientInit.KexAlgos) {
+			extensions := map[string][]byte{}
+			extensions["server-sig-algs"] = []byte(strings.Join(acceptableAlgs, ","))
+
+			extInfo := &extInfoMsg{
+				NumExtensions: uint32(len(extensions)),
+			}
+			for k, v := range extensions {
+				extInfo.Payload = appendInt(extInfo.Payload, len(k))
+				extInfo.Payload = append(extInfo.Payload, k...)
+				extInfo.Payload = appendInt(extInfo.Payload, len(v))
+				extInfo.Payload = append(extInfo.Payload, v...)
+			}
+			if err := t.conn.writePacket(Marshal(extInfo)); err != nil {
+				return err
+			}
+		}
+	}
+
 	if packet, err := t.conn.readPacket(); err != nil {
 		return err
 	} else if packet[0] != msgNewKeys {
@@ -633,6 +656,15 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte) error {
 	}
 
 	return nil
+}
+
+func isExtInfo(kexAlgos []string) bool {
+	for _, algo := range kexAlgos {
+		if algo == "ext-info-c" {
+			return true
+		}
+	}
+	return false
 }
 
 // algorithmSignerWrapper is an AlgorithmSigner that only supports the default
